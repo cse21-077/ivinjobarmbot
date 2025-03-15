@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@aws-sdk/client-ec2": "^3.760.0",
+    "@aws-sdk/client-ec2": "^3.767.0",
     "@aws-sdk/client-ssm": "^3.759.0",
     "@lottiefiles/dotlottie-react": "^0.13.2",
     "@radix-ui/react-checkbox": "^1.1.4",
@@ -28,7 +28,7 @@
     "firebase": "^11.4.0",
     "lodash.template": "^4.5.0",
     "lucide-react": "^0.476.0",
-    "next": "15.2.0",
+    "next": "^15.2.0",
     "next-pwa": "^5.6.0",
     "next-themes": "^0.4.4",
     "react": "^19.0.0",
@@ -46,12 +46,11 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@next/swc-win32-x64-msvc": "^15.2.2",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
     "dotenv": "^16.4.7",
     "eslint": "^9",
     "eslint-config-next": "15.2.0",
@@ -59,6 +58,6 @@
     "tailwindcss": "^4",
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5.8.2"
   }
 }

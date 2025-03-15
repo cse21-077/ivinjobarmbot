@@ -1,4 +1,3 @@
-// File: connect.ts
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "ssh2";
 import * as fs from "fs";
@@ -102,13 +101,13 @@ async function findAvailableInstance(): Promise<number | null> {
     // First check our in-memory map for available instances
     for (let i = 1; i <= MAX_INSTANCES; i++) {
       if (!instanceMap[i]) {
-        // Verify with docker that this instance isn't actually running
-        const containerCheck = await executeCommand(
+        // Verify with docker-compose that this instance isn't running
+        const composeCheck = await executeCommand(
           conn,
           `docker ps --filter "name=mt5-instance-${i}" --format "{{.Names}}"`
         );
 
-        if (!containerCheck.includes(`mt5-instance-${i}`)) {
+        if (!composeCheck.includes(`mt5-instance-${i}`)) {
           return i;
         }
       }
@@ -118,29 +117,6 @@ async function findAvailableInstance(): Promise<number | null> {
   } catch (error) {
     console.error("Error finding available instance:", error);
     return null;
-  } finally {
-    if (conn) conn.end();
-  }
-}
-
-/**
- * Get total count of active MT5 instances
- */
-async function getActiveInstanceCount(): Promise<number> {
-  let conn: Client | null = null;
-
-  try {
-    conn = await createSSHConnection();
-    const result = await executeCommand(
-      conn,
-      `docker ps --filter "name=mt5-instance-" | grep -c mt5-instance-`
-    );
-
-    const count = parseInt(result.trim());
-    return isNaN(count) ? 0 : count;
-  } catch (error) {
-    console.error("Error counting active instances:", error);
-    return Object.values(instanceMap).filter(Boolean).length; // Fallback to in-memory count
   } finally {
     if (conn) conn.end();
   }
@@ -163,8 +139,8 @@ async function startMT5Instance(
   try {
     conn = await createSSHConnection();
 
-    // First, ensure the container doesn't already exist
-    await executeCommand(conn, `docker rm -f mt5-instance-${instanceId} 2>/dev/null || true`);
+    // Path for instance-specific docker-compose file
+    const composeFilePath = `/home/ubuntu/mt5-instances/docker-compose-${instanceId}.yml`;
 
     // Create MT5-login.ini file content
     const iniContent = `
@@ -187,15 +163,25 @@ TimeFrame=${timeframe || "M5"}
 ${iniContent}
 EOL`);
 
-    // Start new container with the configuration file mounted
-    const startCmd = `
-    docker run -d --name mt5-instance-${instanceId} \\
-      -v ${tempFilePath}:"${containerIniPath}" \\
-      --restart unless-stopped \\
-      registry.your-domain.com/mt5-docker:latest
-    `;
+    // Generate docker-compose.yml content
+    const composeContent = `
+version: '3'
+services:
+  mt5-instance-${instanceId}:
+    image: local-mt5-image:latest
+    container_name: mt5-instance-${instanceId}
+    volumes:
+      - ${tempFilePath}:${containerIniPath}
+    restart: unless-stopped
+`.trim();
 
-    await executeCommand(conn, startCmd);
+    // Write the docker-compose.yml file to the VPS
+    await executeCommand(conn, `cat > ${composeFilePath} << 'EOL'
+${composeContent}
+EOL`);
+
+    // Start the instance using docker-compose
+    await executeCommand(conn, `cd /home/ubuntu/mt5-instances && docker-compose -p mt5-instance-${instanceId} up -d`);
 
     // Store instance info in our map
     instanceMap[instanceId] = {
@@ -265,6 +251,29 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
+
+    /**
+ * Get total count of active MT5 instances
+ */
+async function getActiveInstanceCount(): Promise<number> {
+  let conn: Client | null = null;
+
+  try {
+    conn = await createSSHConnection();
+    const result = await executeCommand(
+      conn,
+      `docker ps --filter "name=mt5-instance-" --format "{{.Names}}" | wc -l`
+    );
+
+    const count = parseInt(result.trim());
+    return isNaN(count) ? 0 : count;
+  } catch (error) {
+    console.error("Error counting active instances:", error);
+    return Object.values(instanceMap).filter(Boolean).length; // Fallback to in-memory count
+  } finally {
+    if (conn) conn.end();
+  }
+}
 
     // Start the MT5 instance
     const success = await startMT5Instance(
